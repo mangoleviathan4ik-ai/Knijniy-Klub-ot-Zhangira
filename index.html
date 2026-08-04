@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AnellasNovellas</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ FIXED DESERT SCENE (behind everything) ============ -->
+<div class="scene" id="scene" aria-hidden="true">
+  <div class="sky"></div>
+  <div class="sun"></div>
+  <div class="moon"></div>
+  <div class="stars" id="stars"></div>
+  <div class="dunes dunes-far"></div>
+  <div class="dunes dunes-near"></div>
+  <div class="castle" id="castle">
+    <div class="tower tower-left">
+      <div class="roof"></div>
+      <div class="c-window" style="top:22%; left:30%;"></div>
+      <div class="c-window" style="top:48%; left:30%;"></div>
+      <div class="c-window" style="top:74%; left:30%;"></div>
+    </div>
+    <div class="tower tower-mid">
+      <div class="roof"></div>
+      <div class="c-window" style="top:18%; left:28%;"></div>
+      <div class="c-window" style="top:40%; left:28%;"></div>
+      <div class="c-window" style="top:62%; left:28%;"></div>
+      <div class="c-window" style="top:84%; left:28%;"></div>
+    </div>
+    <div class="tower tower-right">
+      <div class="roof"></div>
+      <div class="c-window" style="top:30%; left:30%;"></div>
+      <div class="c-window" style="top:60%; left:30%;"></div>
+    </div>
+    <div class="curtain-wall"></div>
+    <div class="c-window gate-window" style="top:68%; left:44%;"></div>
+  </div>
+</div>
+
+<!-- ============ SANDSTORM INTRO ============ -->
+<section class="storm-hero" id="stormHero">
+  <div class="storm-layer storm-layer-1"></div>
+  <div class="storm-layer storm-layer-2"></div>
+  <div class="storm-layer storm-layer-3"></div>
+  <div class="storm-particles" id="stormParticles"></div>
+
+  <div class="storm-title-wrap">
+    <h1>AnellasNovellas</h1>
+    <p>Клуб читателей на краю великой пустыни</p>
+  </div>
+
+  <div class="enter-hint">Коснись бури, чтобы она рассеялась</div>
+</section>
+
+<!-- ============ MAIN HALL ============ -->
+<main class="hall" id="hall">
+
+  <!-- Greeting -->
+  <section class="parchment-card" id="greetingCard" style="display:none;">
+    <p class="eyebrow">Хранитель клуба рад тебе</p>
+    <p class="greeting-line">Здравствуй, <span class="name" id="greetName">странник</span>! Добро пожаловать в AnellasNovellas.</p>
+    <button class="small-link" id="changeNameBtn" type="button">сменить имя</button>
+  </section>
+
+  <!-- Book search -->
+  <section class="parchment-card">
+    <h2>Книга Твоих Поисков</h2>
+    <p class="card-sub">Впиши название книги, которую хочешь предложить клубу — или пропусти этот шаг.</p>
+    <label class="field-label" for="bookInput">Название книги</label>
+    <input type="text" id="bookInput" placeholder="напр. Дюна">
+    <div class="btn-row">
+      <button id="searchBtn" type="button">Искать</button>
+      <button class="ghost" id="skipBtn" type="button">Пропустить</button>
+    </div>
+    <div id="searchStatus" class="status-msg" style="display:none;"></div>
+    <div id="bookResult" class="book-result" style="display:none;">
+      <img id="bookCover" src="" alt="">
+      <div class="info">
+        <h3 id="bookTitle"></h3>
+        <p id="bookAuthor"></p>
+        <p id="bookYear"></p>
+      </div>
+    </div>
+    <div class="btn-row" id="addRow" style="display:none;">
+      <button id="addToVoteBtn" type="button">Внести в список голосования</button>
+    </div>
+  </section>
+
+  <!-- Voting summary + entry point to the separate voting window -->
+  <section class="parchment-card">
+    <h2>Совет Клуба</h2>
+    <p class="card-sub">Каждый участник отдаёт один голос за предложенную книгу.</p>
+    <div id="votingSummary" class="voting-summary">
+      <p class="empty-note">Список пуст. Внеси книгу выше — станешь первым.</p>
+    </div>
+    <div class="btn-row">
+      <button id="openVotingBtn" type="button">Открыть список книг</button>
+    </div>
+    <p class="shared-note" id="storageNote"></p>
+  </section>
+
+  <!-- Winner -->
+  <section class="parchment-card winner-banner" id="winnerCard" style="display:none;">
+    <p class="eyebrow">Совет свершился</p>
+    <h2>Избранная Книга</h2>
+    <img id="winnerCover" src="" alt="">
+    <h3 id="winnerTitle" class="winner-title-text"></h3>
+    <p id="winnerVotes" class="card-sub"></p>
+  </section>
+
+  <!-- Ratings hall -->
+  <section class="parchment-card">
+    <h2>Оценки Клуба</h2>
+    <p class="card-sub">Оцени книги по шкале от 1 до 10. Средняя оценка видна всем участникам.</p>
+    <label class="field-label" for="newRatingBookInput">Добавить книгу в этот список</label>
+    <input type="text" id="newRatingBookInput" placeholder="напр. Марсианин">
+    <div class="btn-row">
+      <button id="addRatingBookBtn" type="button">Добавить книгу в оценки</button>
+    </div>
+    <ul class="rating-list" id="ratingList"></ul>
+  </section>
+
+</main>
+
+<!-- ============ NICKNAME MODAL ============ -->
+<div class="modal-overlay" id="nameModal">
+  <div class="parchment-card modal-box">
+    <h2>Назовись</h2>
+    <p class="card-sub">Как к тебе обращаться в клубе?</p>
+    <label class="field-label" for="nameInput">Твоё имя или прозвище</label>
+    <input type="text" id="nameInput" placeholder="напр. Аэлла">
+    <div class="btn-row">
+      <button id="saveNameBtn" type="button">Войти в клуб</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SEPARATE VOTING WINDOW ============ -->
+<div class="modal-overlay" id="votingModal">
+  <div class="parchment-card modal-box modal-box-wide">
+    <h2>Список Голосования</h2>
+    <p class="card-sub">Все книги, что участники предложили клубу.</p>
+    <ul class="book-list" id="bookList"></ul>
+    <p class="empty-note" id="emptyNote" style="display:none;">Список пуст. Стань первым, кто впишет книгу.</p>
+    <div class="btn-row">
+      <button class="ghost" id="declareBtn" type="button">Объявить победителя совета</button>
+      <button class="ghost" id="closeVotingBtn" type="button">Закрыть окно</button>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
