@@ -1,99 +1,109 @@
 (function(){
   // ---------------------------------------------------------------
-  // Personal storage: tries Claude's storage API (works when this
-  // page runs inside a Claude artifact), falls back to localStorage
-  // so nickname / device id / "my vote" still survive closing the
-  // tab when the site is opened as plain files.
+  // Storage layer: uses Claude's shared/personal storage when the
+  // page runs inside a Claude artifact (real cross-visitor sharing).
+  // When that API is not present — e.g. the page was downloaded and
+  // opened as a normal website — everything falls back to
+  // localStorage, so buttons keep working and data survives reloads
+  // and closing the tab. The fallback is per-browser only: it cannot
+  // make votes/ratings visible to other people's devices, since a
+  // static HTML/CSS/JS site has no server to share data through.
   // ---------------------------------------------------------------
   const hasCloudStorage = (typeof window.storage !== 'undefined') && !!window.storage;
 
-  function lsKey(key){ return 'anella:personal:' + key; }
-
-  async function storeGet(key){
-    if(hasCloudStorage){
-      try{
-        const res = await window.storage.get(key, false);
-        return (res && typeof res.value !== 'undefined') ? res.value : null;
-      }catch(err){ return null; }
-    }
-    try{ return localStorage.getItem(lsKey(key)); }catch(err){ return null; }
+  function lsKey(key, shared){
+    return 'citadel:' + (shared ? 'shared:' : 'personal:') + key;
   }
 
-  async function storeSet(key, value){
+  async function storeGet(key, shared){
     if(hasCloudStorage){
-      try{ await window.storage.set(key, value, false); return true; }
-      catch(err){ console.error('Ошибка облачного хранилища:', err); }
+      try{
+        const res = await window.storage.get(key, !!shared);
+        return (res && typeof res.value !== 'undefined') ? res.value : null;
+      }catch(err){
+        return null; // key not found or storage error
+      }
     }
-    try{ localStorage.setItem(lsKey(key), value); return true; }
-    catch(err){ console.error('Ошибка локального хранилища:', err); return false; }
+    try{
+      return localStorage.getItem(lsKey(key, shared));
+    }catch(err){
+      return null;
+    }
+  }
+
+  async function storeSet(key, value, shared){
+    if(hasCloudStorage){
+      try{
+        await window.storage.set(key, value, !!shared);
+        return true;
+      }catch(err){
+        console.error('Ошибка облачного хранилища:', err);
+      }
+    }
+    try{
+      localStorage.setItem(lsKey(key, shared), value);
+      return true;
+    }catch(err){
+      console.error('Ошибка локального хранилища:', err);
+      return false;
+    }
   }
 
   // ---------------------------------------------------------------
-  // Shared cloud data for THIS club lives in the same JSONBin used by
-  // the other project, but nested under its own "anella" key so the
-  // two clubs' books/votes/ratings never mix.
+  // Real cross-device shared storage via JSONBin.io. This is what
+  // makes votes, submitted books, and ratings visible to every guest
+  // on every device — not just on the browser that made the change.
+  // All shared data (books + ratings) lives in one JSON bin, so every
+  // write re-reads the bin first and merges in, to avoid one field
+  // (say, books) wiping out the other (say, bookRatings).
   // ---------------------------------------------------------------
   const JSONBIN_ID = '6a6ef762da38895dfeaeed5f';
   const JSONBIN_KEY = '$2a$10$.um2lc2kHdWRX5UfCxDtj.egJaqqOB4rniH4eGh.0AApsyxuYJnp2';
   const JSONBIN_BASE = 'https://api.jsonbin.io/v3/b/' + JSONBIN_ID;
 
-  function emptyClubData(){
-    return { books: [], bookRatings: {}, extraRatingBooks: [] };
-  }
-
-  async function jsonbinReadClub(){
+  async function jsonbinRead(){
     try{
       const resp = await fetch(JSONBIN_BASE + '/latest', {
-        method:'GET',
-        headers:{ 'X-Master-Key': JSONBIN_KEY }
+        method: 'GET',
+        headers: { 'X-Master-Key': JSONBIN_KEY }
       });
       if(!resp.ok) throw new Error('jsonbin read failed: ' + resp.status);
       const data = await resp.json();
       const record = (data && data.record) ? data.record : {};
-      const club = (record.anella && typeof record.anella === 'object') ? record.anella : {};
       return {
-        books: Array.isArray(club.books) ? club.books : [],
-        bookRatings: (club.bookRatings && typeof club.bookRatings === 'object') ? club.bookRatings : {},
-        extraRatingBooks: Array.isArray(club.extraRatingBooks) ? club.extraRatingBooks : []
+        books: Array.isArray(record.books) ? record.books : [],
+        bookRatings: (record.bookRatings && typeof record.bookRatings === 'object') ? record.bookRatings : {}
       };
     }catch(err){
-      console.error('Не удалось прочитать данные клуба:', err);
-      return emptyClubData();
+      console.error('Не удалось прочитать общий свиток:', err);
+      return { books: [], bookRatings: {} };
     }
   }
 
-  // Reads the FULL bin (both clubs), replaces only the "anella" branch,
-  // and writes the whole thing back so the other club's data survives.
-  async function jsonbinWriteClub(clubData){
+  async function jsonbinWrite(fullData){
     try{
-      const getResp = await fetch(JSONBIN_BASE + '/latest', {
-        method:'GET',
-        headers:{ 'X-Master-Key': JSONBIN_KEY }
+      const resp = await fetch(JSONBIN_BASE, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': JSONBIN_KEY
+        },
+        body: JSON.stringify(fullData)
       });
-      let fullRecord = {};
-      if(getResp.ok){
-        const data = await getResp.json();
-        fullRecord = (data && data.record) ? data.record : {};
-      }
-      fullRecord.anella = clubData;
-      const putResp = await fetch(JSONBIN_BASE, {
-        method:'PUT',
-        headers:{ 'Content-Type':'application/json', 'X-Master-Key': JSONBIN_KEY },
-        body: JSON.stringify(fullRecord)
-      });
-      if(!putResp.ok) throw new Error('jsonbin write failed: ' + putResp.status);
+      if(!resp.ok) throw new Error('jsonbin write failed: ' + resp.status);
       return true;
     }catch(err){
-      console.error('Не удалось сохранить данные клуба:', err);
+      console.error('Не удалось сохранить в общий свиток:', err);
       return false;
     }
   }
 
   // ---------------------------------------------------------------
 
-  const stormHero = document.getElementById('stormHero');
-  const stormParticles = document.getElementById('stormParticles');
+  const hero = document.getElementById('hero');
   const hall = document.getElementById('hall');
+  const doorLeft = document.getElementById('doorLeft');
+  const doorRight = document.getElementById('doorRight');
   const nameModal = document.getElementById('nameModal');
   const nameInput = document.getElementById('nameInput');
   const saveNameBtn = document.getElementById('saveNameBtn');
@@ -127,81 +137,74 @@
   const storageNote = document.getElementById('storageNote');
 
   const ratingList = document.getElementById('ratingList');
-  const newRatingBookInput = document.getElementById('newRatingBookInput');
-  const addRatingBookBtn = document.getElementById('addRatingBookBtn');
 
   let currentFoundBook = null;
   let myVoteId = null;
   let myUserId = null;
   let votingBusy = false;
 
-  storageNote.textContent = 'Список книг, голоса и оценки хранятся в общем облаке и видны всем участникам клуба на любых устройствах.';
+  storageNote.textContent = 'Список книг, голоса и оценки хранятся в общем облаке и видны всем гостям цитадели на любых устройствах.';
 
+  // Fixed catalogue for the 1-10 ratings hall
   const STATIC_BOOKS = [
-    { id:'ab01', title:'Дюна' },
-    { id:'ab02', title:'Белые флаги' },
-    { id:'ab03', title:'Правда о деле Гарри Квеберта' },
-    { id:'ab04', title:'Шёпот теней' },
-    { id:'ab05', title:'В ожидании Кайроса' },
-    { id:'ab06', title:'Две жизни' },
-    { id:'ab07', title:'Море споёт колыбельную' },
-    { id:'ab08', title:'Дозоры' },
-    { id:'ab09', title:'Пикник на обочине' }
+    { id:'rb01', title:'Остров пропавших деревьев' },
+    { id:'rb02', title:'Игра реальностей Дрейка' },
+    { id:'rb03', title:'Страна чудес без тормозов' },
+    { id:'rb04', title:'Конклав' },
+    { id:'rb05', title:'Большая маленькая ложь' },
+    { id:'rb06', title:'Город женщин' },
+    { id:'rb07', title:'Там, где раки поют' },
+    { id:'rb08', title:'Руководство по истреблению вампиров' },
+    { id:'rb09', title:'Бабушка велела кланяться и передать, что просит прощения' },
+    { id:'rb10', title:'Рождество Эркюля Пуаро' },
+    { id:'rb11', title:'Черновик' },
+    { id:'rb12', title:'Мемуары гейши' },
+    { id:'rb13', title:'Я её любил, я его любила' },
+    { id:'rb14', title:'Маленькие женщины' },
+    { id:'rb15', title:'Правда о деле Гарри Квеберта' },
+    { id:'rb16', title:'Творцы совпадений' }
   ];
 
-  // ---------- Desert scene: stars + day/night cycle every 20 minutes ----------
-  function scatterStars(){
-    const starsWrap = document.getElementById('stars');
-    const count = 70;
-    for(let i=0;i<count;i++){
-      const s = document.createElement('div');
-      s.className = 'star';
-      s.style.left = (Math.random()*100) + '%';
-      s.style.top = (Math.random()*85) + '%';
-      s.style.animationDelay = (Math.random()*3) + 's';
-      starsWrap.appendChild(s);
-    }
-  }
-  scatterStars();
-
-  function toggleDayNight(){
-    document.body.classList.toggle('night-mode');
-  }
-  setInterval(toggleDayNight, 20 * 60 * 1000); // every 20 minutes
-
-  // ---------- Sandstorm intro ----------
-  function spawnStormParticles(){
-    const count = 46;
-    for(let i=0;i<count;i++){
-      const p = document.createElement('div');
-      p.className = 'sand-particle';
-      const startX = Math.random()*100;
-      const startY = Math.random()*100;
-      const angle = Math.random()*Math.PI*2;
-      const dist = 300 + Math.random()*500;
-      const tx = Math.cos(angle)*dist;
-      const ty = Math.sin(angle)*dist - 120;
-      p.style.left = startX + '%';
-      p.style.top = startY + '%';
-      p.style.setProperty('--tx', tx + 'px');
-      p.style.setProperty('--ty', ty + 'px');
-      p.style.setProperty('--rot', (Math.random()*540 - 270) + 'deg');
-      p.style.animationDelay = (Math.random()*0.25) + 's';
-      stormParticles.appendChild(p);
-    }
-  }
-  spawnStormParticles();
-
-  function dispelStorm(){
-    if(stormHero.classList.contains('dispersing')) return;
-    stormHero.classList.add('dispersing');
+  function openDoors(){
+    hero.classList.add('opened');
     setTimeout(()=>{
-      stormHero.classList.add('hidden');
       hall.classList.add('visible');
       initAfterEntry();
-    }, 1350);
+    }, 900);
   }
-  stormHero.addEventListener('click', dispelStorm);
+  doorLeft.addEventListener('click', openDoors);
+  doorRight.addEventListener('click', openDoors);
+
+  // ---------- Atmospheric rain window (purely decorative) ----------
+  function initRainWindow(){
+    const rainLayer = document.getElementById('rainLayer');
+    if(!rainLayer) return;
+    const dropCount = 26;
+    for(let i=0;i<dropCount;i++){
+      const drop = document.createElement('div');
+      drop.className = 'raindrop';
+      drop.style.left = (Math.random()*100) + '%';
+      drop.style.animationDuration = (0.5 + Math.random()*0.5) + 's';
+      drop.style.animationDelay = (Math.random()*2) + 's';
+      rainLayer.appendChild(drop);
+    }
+    scheduleLightning();
+  }
+
+  function scheduleLightning(){
+    const wait = 4000 + Math.random()*10000; // strikes at a random moment
+    setTimeout(()=>{
+      const flash = document.getElementById('lightningFlash');
+      if(flash){
+        flash.classList.remove('flash');
+        void flash.offsetWidth; // restart the CSS animation
+        flash.classList.add('flash');
+      }
+      scheduleLightning();
+    }, wait);
+  }
+
+  initRainWindow();
 
   async function initAfterEntry(){
     try{ await loadNickname(); }catch(e){ console.error(e); }
@@ -210,26 +213,28 @@
     try{ await refreshVotingUI(); }catch(e){ console.error(e); }
     try{ await renderRatingsFull(); }catch(e){ console.error(e); }
 
+    // Keep shared data live so every guest sees fresh votes and averages
+    // without needing to reload the page.
     setInterval(()=> refreshVotingUI().catch(()=>{}), 7000);
     setInterval(()=> renderRatingsFull().catch(()=>{}), 7000);
   }
 
-  // ---------- Stable identity ----------
+  // ---------- Stable identity (survives reload/close of the tab) ----------
   async function getMyUserId(){
     if(myUserId) return myUserId;
-    const existing = await storeGet('user_id');
+    const existing = await storeGet('user_id', false);
     if(existing){
       myUserId = existing;
     } else {
       myUserId = 'u_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,10);
-      await storeSet('user_id', myUserId);
+      await storeSet('user_id', myUserId, false);
     }
     return myUserId;
   }
 
   // ---------- Nickname ----------
   async function loadNickname(){
-    const name = await storeGet('nickname');
+    const name = await storeGet('nickname', false);
     if(name){
       showGreeting(name);
     } else {
@@ -246,7 +251,7 @@
   saveNameBtn.addEventListener('click', async ()=>{
     const val = nameInput.value.trim();
     if(!val) return;
-    await storeSet('nickname', val);
+    await storeSet('nickname', val, false);
     showGreeting(val);
   });
   nameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') saveNameBtn.click(); });
@@ -264,14 +269,14 @@
     bookResult.style.display='none';
     addRow.style.display='none';
     searchStatus.style.display='block';
-    searchStatus.textContent = 'Ты пропустил этот шаг.';
+    searchStatus.textContent = 'Ты прошёл мимо, ничего не выбрав.';
   });
 
   async function doSearch(){
     const q = bookInput.value.trim();
     if(!q) return;
     searchStatus.style.display='block';
-    searchStatus.textContent = 'Идёт поиск в каталогах...';
+    searchStatus.textContent = 'Хранитель листает каталоги...';
     bookResult.style.display='none';
     addRow.style.display='none';
     currentFoundBook = null;
@@ -282,7 +287,7 @@
       const data = await resp.json();
       const doc = data.docs && data.docs[0];
       if(!doc){
-        searchStatus.textContent = 'Такая книга не нашлась. Попробуй иначе или пропусти шаг.';
+        searchStatus.textContent = 'В этих каталогах такой книги не нашлось. Можешь попробовать иначе или пропустить.';
         return;
       }
       const title = doc.title || q;
@@ -302,7 +307,7 @@
       addToVoteBtn.disabled = false;
       addToVoteBtn.textContent = 'Внести в список голосования';
     }catch(err){
-      searchStatus.textContent = 'Каталог сейчас недоступен. Впиши книгу от руки — она всё равно попадёт в список.';
+      searchStatus.textContent = 'Каталоги сейчас недоступны. Впиши книгу от руки — она всё равно попадёт в свиток.';
       currentFoundBook = { title: q, author: '', year: '', cover: '' };
       addRow.style.display = 'flex';
       addToVoteBtn.disabled = false;
@@ -310,14 +315,29 @@
     }
   }
 
-  // ---------- Shared voting ----------
+  // ---------- Shared book list & voting ----------
+  async function getSharedBooks(){
+    const data = await jsonbinRead();
+    return data.books;
+  }
+
+  async function setSharedBooks(list){
+    const data = await jsonbinRead();
+    data.books = list;
+    return jsonbinWrite(data);
+  }
+
+  async function loadMyVote(){
+    myVoteId = await storeGet('myVote', false);
+  }
+
   addToVoteBtn.addEventListener('click', async ()=>{
     if(!currentFoundBook || addToVoteBtn.disabled) return;
     addToVoteBtn.disabled = true;
-    const club = await jsonbinReadClub();
-    const exists = club.books.find(b => b.title.trim().toLowerCase() === currentFoundBook.title.trim().toLowerCase());
+    const list = await getSharedBooks();
+    const exists = list.find(b => b.title.trim().toLowerCase() === currentFoundBook.title.trim().toLowerCase());
     if(!exists){
-      club.books.push({
+      list.push({
         id: 'b_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
         title: currentFoundBook.title,
         author: currentFoundBook.author,
@@ -325,57 +345,41 @@
         votes: 0,
         voters: []
       });
-      await jsonbinWriteClub(club);
+      await setSharedBooks(list);
     }
-    addToVoteBtn.textContent = 'Уже внесена в список';
+    addToVoteBtn.textContent = 'Уже внесена в свиток';
     await refreshVotingUI();
   });
 
+  // Each voter id occupies at most one slot across all "voters" arrays,
+  // so the vote count is always just that array's length — never a
+  // hand-incremented number that can drift out of sync.
   async function castVote(bookId){
     if(votingBusy) return;
     votingBusy = true;
     setVoteButtonsDisabled(true);
     try{
       const uid = await getMyUserId();
-      const club = await jsonbinReadClub();
+      const list = await getSharedBooks();
 
-      club.books.forEach(b=>{
+      list.forEach(b=>{
         if(!Array.isArray(b.voters)) b.voters = [];
         b.voters = b.voters.filter(v => v !== uid);
       });
 
       const alreadyHadThisVote = (myVoteId === bookId);
       if(!alreadyHadThisVote){
-        const target = club.books.find(b => b.id === bookId);
+        const target = list.find(b => b.id === bookId);
         if(target) target.voters.push(uid);
         myVoteId = bookId;
       } else {
         myVoteId = null;
       }
 
-      club.books.forEach(b=>{ b.votes = b.voters.length; });
+      list.forEach(b=>{ b.votes = b.voters.length; });
 
-      await jsonbinWriteClub(club);
-      await storeSet('myVote', myVoteId || '');
-      await refreshVotingUI();
-    } finally {
-      votingBusy = false;
-      setVoteButtonsDisabled(false);
-    }
-  }
-
-  async function removeBook(bookId){
-    if(votingBusy) return;
-    votingBusy = true;
-    setVoteButtonsDisabled(true);
-    try{
-      const club = await jsonbinReadClub();
-      club.books = club.books.filter(b => b.id !== bookId);
-      await jsonbinWriteClub(club);
-      if(myVoteId === bookId){
-        myVoteId = null;
-        await storeSet('myVote', '');
-      }
+      await setSharedBooks(list);
+      await storeSet('myVote', myVoteId || '', false);
       await refreshVotingUI();
     } finally {
       votingBusy = false;
@@ -387,21 +391,19 @@
     bookList.querySelectorAll('button').forEach(b => b.disabled = disabled);
   }
 
-  async function loadMyVote(){
-    myVoteId = await storeGet('myVote');
-  }
-
   async function refreshVotingUI(){
-    const club = await jsonbinReadClub();
+    const list = await getSharedBooks();
+
+    // Normalize legacy/incomplete entries
     let needsNormalize = false;
-    club.books.forEach(b=>{
+    list.forEach(b=>{
       if(!Array.isArray(b.voters)){ b.voters = []; needsNormalize = true; }
       if(b.votes !== b.voters.length){ b.votes = b.voters.length; needsNormalize = true; }
     });
-    if(needsNormalize) await jsonbinWriteClub(club);
+    if(needsNormalize) await setSharedBooks(list);
 
-    renderVotingSummary(club.books);
-    renderVotingModalList(club.books);
+    renderVotingSummary(list);
+    renderVotingModalList(list);
   }
 
   function renderVotingSummary(list){
@@ -412,8 +414,8 @@
     const sorted = [...list].sort((a,b)=> (b.votes||0) - (a.votes||0));
     const leader = sorted[0];
     votingSummary.innerHTML = `
-      <p class="leader-line"><span class="crown">&#128081;</span>${escapeHtml(leader.title)}</p>
-      <p class="leader-count">лидирует с ${leader.votes||0} голос(ами) · книг в списке: ${list.length}</p>
+      <p class="leader-line"><span class="crown">&#128081;</span><span class="title">${escapeHtml(leader.title)}</span></p>
+      <p class="leader-count">лидирует с ${leader.votes||0} голос(ами) · книг в свитке: ${list.length}</p>
     `;
   }
 
@@ -442,18 +444,40 @@
       `;
       const voteBtn = document.createElement('button');
       voteBtn.className = 'ghost';
+      voteBtn.style.marginLeft = '0.6rem';
       voteBtn.textContent = isMine ? 'Забрать голос' : 'Голосовать';
       voteBtn.addEventListener('click', ()=> castVote(b.id));
       li.appendChild(voteBtn);
 
       const removeBtn = document.createElement('button');
       removeBtn.className = 'ghost danger';
+      removeBtn.style.marginLeft = '0.5rem';
       removeBtn.textContent = 'Убрать';
       removeBtn.addEventListener('click', ()=> removeBook(b.id));
       li.appendChild(removeBtn);
 
       bookList.appendChild(li);
     });
+  }
+
+  // Removes a book from the voting scroll entirely (any guest can do this).
+  async function removeBook(bookId){
+    if(votingBusy) return;
+    votingBusy = true;
+    setVoteButtonsDisabled(true);
+    try{
+      const data = await jsonbinRead();
+      data.books = data.books.filter(b => b.id !== bookId);
+      await jsonbinWrite(data);
+      if(myVoteId === bookId){
+        myVoteId = null;
+        await storeSet('myVote', '', false);
+      }
+      await refreshVotingUI();
+    } finally {
+      votingBusy = false;
+      setVoteButtonsDisabled(false);
+    }
   }
 
   function escapeHtml(str){
@@ -472,9 +496,9 @@
   });
 
   declareBtn.addEventListener('click', async ()=>{
-    const club = await jsonbinReadClub();
-    if(club.books.length === 0) return;
-    const sorted = [...club.books].sort((a,b) => (b.votes||0) - (a.votes||0));
+    const list = await getSharedBooks();
+    if(list.length === 0) return;
+    const sorted = [...list].sort((a,b) => (b.votes||0) - (a.votes||0));
     const winner = sorted[0];
     winnerCover.src = winner.cover || '';
     winnerCover.style.display = winner.cover ? 'block' : 'none';
@@ -483,27 +507,39 @@
     winnerCard.style.display = 'block';
     votingModal.classList.remove('show');
 
-    club.books = [];
-    await jsonbinWriteClub(club);
+    // The council has spoken — clear the scroll so a new round can begin.
+    const data = await jsonbinRead();
+    data.books = [];
+    await jsonbinWrite(data);
     myVoteId = null;
-    await storeSet('myVote', '');
+    await storeSet('myVote', '', false);
     await refreshVotingUI();
 
     winnerCard.scrollIntoView({behavior:'smooth', block:'center'});
   });
 
-  // ---------- Ratings hall ----------
+  // ---------- Ratings hall (1-10 scale, shared averages, extendable list) ----------
+  const newRatingBookInput = document.getElementById('newRatingBookInput');
+  const addRatingBookBtn = document.getElementById('addRatingBookBtn');
+
+  async function getAllRatingBooks(){
+    const data = await jsonbinRead();
+    const extra = Array.isArray(data.extraRatingBooks) ? data.extraRatingBooks : [];
+    return STATIC_BOOKS.concat(extra);
+  }
+
   async function addRatingBook(title){
-    const club = await jsonbinReadClub();
+    const data = await jsonbinRead();
+    if(!Array.isArray(data.extraRatingBooks)) data.extraRatingBooks = [];
     const clean = title.trim();
     const takenTitles = STATIC_BOOKS.map(b=>b.title.toLowerCase())
-      .concat(club.extraRatingBooks.map(b=>b.title.toLowerCase()));
+      .concat(data.extraRatingBooks.map(b=>b.title.toLowerCase()));
     if(takenTitles.includes(clean.toLowerCase())) return false;
-    club.extraRatingBooks.push({
-      id: 'abx_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    data.extraRatingBooks.push({
+      id: 'rbx_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
       title: clean
     });
-    await jsonbinWriteClub(club);
+    await jsonbinWrite(data);
     return true;
   }
 
@@ -522,10 +558,11 @@
     if(btnEl) btnEl.disabled = true;
     try{
       const uid = await getMyUserId();
-      const club = await jsonbinReadClub();
-      if(!club.bookRatings[bookId]) club.bookRatings[bookId] = {};
-      club.bookRatings[bookId][uid] = score;
-      await jsonbinWriteClub(club);
+      const data = await jsonbinRead();
+      if(!data.bookRatings) data.bookRatings = {};
+      if(!data.bookRatings[bookId]) data.bookRatings[bookId] = {};
+      data.bookRatings[bookId][uid] = score;
+      await jsonbinWrite(data);
       await renderRatingsFull();
     } finally {
       if(btnEl) btnEl.disabled = false;
@@ -534,9 +571,10 @@
 
   async function renderRatingsFull(){
     const uid = await getMyUserId();
-    const club = await jsonbinReadClub();
-    const allBooks = STATIC_BOOKS.concat(club.extraRatingBooks);
-    const ratings = club.bookRatings;
+    const data = await jsonbinRead();
+    const extra = Array.isArray(data.extraRatingBooks) ? data.extraRatingBooks : [];
+    const allBooks = STATIC_BOOKS.concat(extra);
+    const ratings = data.bookRatings || {};
 
     ratingList.innerHTML = '';
     allBooks.forEach(book=>{

@@ -3,56 +3,60 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AnellasNovellas</title>
+<title>Цитадель Книгинь</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- ============ FIXED DESERT SCENE (behind everything) ============ -->
-<div class="scene" id="scene" aria-hidden="true">
-  <div class="sky"></div>
-  <div class="sun"></div>
-  <div class="moon"></div>
-  <div class="stars" id="stars"></div>
-  <div class="dunes dunes-far"></div>
-  <div class="dunes dunes-near"></div>
-  <div class="castle" id="castle">
-    <div class="tower tower-left">
-      <div class="roof"></div>
-      <div class="c-window" style="top:22%; left:30%;"></div>
-      <div class="c-window" style="top:48%; left:30%;"></div>
-      <div class="c-window" style="top:74%; left:30%;"></div>
-    </div>
-    <div class="tower tower-mid">
-      <div class="roof"></div>
-      <div class="c-window" style="top:18%; left:28%;"></div>
-      <div class="c-window" style="top:40%; left:28%;"></div>
-      <div class="c-window" style="top:62%; left:28%;"></div>
-      <div class="c-window" style="top:84%; left:28%;"></div>
-    </div>
-    <div class="tower tower-right">
-      <div class="roof"></div>
-      <div class="c-window" style="top:30%; left:30%;"></div>
-      <div class="c-window" style="top:60%; left:30%;"></div>
-    </div>
-    <div class="curtain-wall"></div>
-    <div class="c-window gate-window" style="top:68%; left:44%;"></div>
-  </div>
-</div>
+<!-- ============ HERO / DOORS ============ -->
+<section class="hero" id="hero">
+  <div class="shelf-silhouette"></div>
+  <div class="glow-chamber"></div>
 
-<!-- ============ SANDSTORM INTRO ============ -->
-<section class="storm-hero" id="stormHero">
-  <div class="storm-layer storm-layer-1"></div>
-  <div class="storm-layer storm-layer-2"></div>
-  <div class="storm-layer storm-layer-3"></div>
-  <div class="storm-particles" id="stormParticles"></div>
-
-  <div class="storm-title-wrap">
-    <h1>AnellasNovellas</h1>
-    <p>Клуб читателей на краю великой пустыни</p>
+  <div class="hero-window" id="heroWindow">
+    <div class="window-frame">
+      <div class="window-sky"></div>
+      <div class="rain-layer" id="rainLayer"></div>
+      <div class="window-mullion-v"></div>
+      <div class="window-mullion-h"></div>
+      <div class="lightning-flash" id="lightningFlash"></div>
+    </div>
   </div>
 
-  <div class="enter-hint">Коснись бури, чтобы она рассеялась</div>
+  <div class="hero-title-wrap">
+    <h1>Цитадель Книгинь</h1>
+    <p>За этими вратами хранится слово каждого читателя</p>
+  </div>
+
+  <div class="doors-stage" id="doorsStage">
+    <div class="door left" id="doorLeft">
+      <div class="door-panel">
+        <div class="cross-brace brace-diag-1"></div>
+        <div class="cross-brace brace-diag-2"></div>
+      </div>
+      <div class="rivet" style="top:12%; left:10%;"></div>
+      <div class="rivet" style="top:12%; left:85%;"></div>
+      <div class="rivet" style="top:88%; left:10%;"></div>
+      <div class="rivet" style="top:88%; left:85%;"></div>
+      <div class="handle"></div>
+    </div>
+    <div class="door right" id="doorRight">
+      <div class="door-panel">
+        <div class="cross-brace brace-diag-1"></div>
+        <div class="cross-brace brace-diag-2"></div>
+      </div>
+      <div class="rivet" style="top:12%; left:10%;"></div>
+      <div class="rivet" style="top:12%; left:85%;"></div>
+      <div class="rivet" style="top:88%; left:10%;"></div>
+      <div class="rivet" style="top:88%; left:85%;"></div>
+      <div class="handle"></div>
+    </div>
+  </div>
+
+  <div class="torch left-torch"><div class="stick"></div><div class="flame"></div></div>
+  <div class="torch right-torch"><div class="stick"></div><div class="flame"></div></div>
+
+  <div class="enter-hint">Толкни врата, чтобы войти</div>
 </section>
 
 <!-- ============ MAIN HALL ============ -->
@@ -60,17 +64,17 @@
 
   <!-- Greeting -->
   <section class="parchment-card" id="greetingCard" style="display:none;">
-    <p class="eyebrow">Хранитель клуба рад тебе</p>
-    <p class="greeting-line">Здравствуй, <span class="name" id="greetName">странник</span>! Добро пожаловать в AnellasNovellas.</p>
+    <p class="eyebrow">Хранитель встречает тебя</p>
+    <p class="greeting-line">Приветствую тебя, <span class="name" id="greetName">странник</span>, в чертогах вечной цитадели.</p>
     <button class="small-link" id="changeNameBtn" type="button">сменить имя</button>
   </section>
 
   <!-- Book search -->
   <section class="parchment-card">
     <h2>Книга Твоих Поисков</h2>
-    <p class="card-sub">Впиши название книги, которую хочешь предложить клубу — или пропусти этот шаг.</p>
+    <p class="card-sub">Впиши название книги, что ты ищешь среди этих полок — или пройди мимо, ничего не выбирая.</p>
     <label class="field-label" for="bookInput">Название книги</label>
-    <input type="text" id="bookInput" placeholder="напр. Дюна">
+    <input type="text" id="bookInput" placeholder="напр. Имя розы">
     <div class="btn-row">
       <button id="searchBtn" type="button">Искать</button>
       <button class="ghost" id="skipBtn" type="button">Пропустить</button>
@@ -91,13 +95,13 @@
 
   <!-- Voting summary + entry point to the separate voting window -->
   <section class="parchment-card">
-    <h2>Совет Клуба</h2>
-    <p class="card-sub">Каждый участник отдаёт один голос за предложенную книгу.</p>
+    <h2>Совет Читателей</h2>
+    <p class="card-sub">Каждый гость цитадели отдаёт один голос за предложенную книгу.</p>
     <div id="votingSummary" class="voting-summary">
       <p class="empty-note">Список пуст. Внеси книгу выше — станешь первым.</p>
     </div>
     <div class="btn-row">
-      <button id="openVotingBtn" type="button">Открыть список книг</button>
+      <button id="openVotingBtn" type="button">Открыть свиток голосования</button>
     </div>
     <p class="shared-note" id="storageNote"></p>
   </section>
@@ -107,16 +111,16 @@
     <p class="eyebrow">Совет свершился</p>
     <h2>Избранная Книга</h2>
     <img id="winnerCover" src="" alt="">
-    <h3 id="winnerTitle" class="winner-title-text"></h3>
+    <h3 id="winnerTitle" style="color:var(--parchment); font-family:'EB Garamond',serif; font-style:italic; font-weight:600; font-size:1.3rem;"></h3>
     <p id="winnerVotes" class="card-sub"></p>
   </section>
 
   <!-- Ratings hall -->
   <section class="parchment-card">
-    <h2>Оценки Клуба</h2>
-    <p class="card-sub">Оцени книги по шкале от 1 до 10. Средняя оценка видна всем участникам.</p>
+    <h2>Скрижаль Оценок</h2>
+    <p class="card-sub">Оцени прочитанные книги по шкале от 1 до 10. Средняя оценка складывается из мнений всех читателей.</p>
     <label class="field-label" for="newRatingBookInput">Добавить книгу в этот список</label>
-    <input type="text" id="newRatingBookInput" placeholder="напр. Марсианин">
+    <input type="text" id="newRatingBookInput" placeholder="напр. Дракула">
     <div class="btn-row">
       <button id="addRatingBookBtn" type="button">Добавить книгу в оценки</button>
     </div>
@@ -129,11 +133,11 @@
 <div class="modal-overlay" id="nameModal">
   <div class="parchment-card modal-box">
     <h2>Назовись</h2>
-    <p class="card-sub">Как к тебе обращаться в клубе?</p>
+    <p class="card-sub">Хранитель цитадели должен знать, как к тебе обращаться.</p>
     <label class="field-label" for="nameInput">Твоё имя или прозвище</label>
-    <input type="text" id="nameInput" placeholder="напр. Аэлла">
+    <input type="text" id="nameInput" placeholder="напр. Ворон">
     <div class="btn-row">
-      <button id="saveNameBtn" type="button">Войти в клуб</button>
+      <button id="saveNameBtn" type="button">Войти в чертоги</button>
     </div>
   </div>
 </div>
@@ -141,10 +145,10 @@
 <!-- ============ SEPARATE VOTING WINDOW ============ -->
 <div class="modal-overlay" id="votingModal">
   <div class="parchment-card modal-box modal-box-wide">
-    <h2>Список Голосования</h2>
-    <p class="card-sub">Все книги, что участники предложили клубу.</p>
+    <h2>Свиток Голосования</h2>
+    <p class="card-sub">Все книги, что гости внесли в цитадель. Голосуй за ту, что должна быть прочтена первой.</p>
     <ul class="book-list" id="bookList"></ul>
-    <p class="empty-note" id="emptyNote" style="display:none;">Список пуст. Стань первым, кто впишет книгу.</p>
+    <p class="empty-note" id="emptyNote" style="display:none;">Список пуст. Стань первым, кто впишет книгу в этот свиток.</p>
     <div class="btn-row">
       <button class="ghost" id="declareBtn" type="button">Объявить победителя совета</button>
       <button class="ghost" id="closeVotingBtn" type="button">Закрыть окно</button>
